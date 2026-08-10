@@ -1,0 +1,42 @@
+# env
+.env
+
+# file
+.venv
+knowledge-ingestion-plan.md
+customer_support.db
+
+# Python
+__pycache__/
+*.py[cod]
+
+# IDE（PyCharm）
+.idea/
+*.iml
+
+# 向量库（可由 scripts/ingest_products.py 重建，不该入库）
+chroma_db/
+
+# 环境变量（保留 .env.example 入库，忽略本地的副本）
+.env.*
+!.env.example
+
+# 日志
+*.log
+logs/
+
+# 测试/工具缓存
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 打包产物（如果以后要打包）
+dist/
+build/
+*.egg-info/
+
+# 跨平台系统文件
+.DS_Store
+Thumbs.db
+
+.claude/settings.local.json
