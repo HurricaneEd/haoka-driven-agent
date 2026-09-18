@@ -1,126 +1,106 @@
 # -*- coding: utf-8 -*-
-"""知识库管理器：ChromaDB 向量检索侧。
+"""知识库门面。
 
-Embedding 走硅基流动（SiliconFlow）OpenAI 兼容接口：BAAI/bge-large-zh-v1.5，
-无需本地模型下载（HuggingFace 网络不通也不受影响）。
-
-- 检索大脑（Chroma）在此
-- SQLite knowledge_base 镜像（台账/审计/重建）由 scripts/ingest_products.py 双写维护
-- 双库键值一致：SQLite 主键 = Chroma id = f"{doc_id}_c{chunk_index}"
+对外只暴露摄入和检索能力；Chroma、Embedding、切分器都封装在 app.rag 内。
 """
-from typing import Any, Dict, List, Optional
 
-from langchain_chroma import Chroma
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence
+
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
 
+from app.rag.chunkers import ChunkingConfig, StructureAwareChunker
+from app.rag.embeddings import SiliconFlowEmbeddings
+from app.rag.ingestion import IngestionService, PreparedDocument
+from app.rag.retrieval import RetrievalService
+from app.rag.schemas import IngestionResult, RagChunk
+from app.rag.stores import ChromaVectorStore
 from config import settings
 
 
 class KnowledgeBaseManager:
-    """Chroma 向量库管理器（检索侧）。"""
+    """组合 RAG 管线，并为 API、Agent 和脚本提供稳定入口。"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         api_key = settings.embedding_api_key or settings.siliconflow_api_key
-        self.embeddings = OpenAIEmbeddings(
-            model=settings.embedding_model,
+        embeddings = SiliconFlowEmbeddings(
             api_key=api_key,
+            model=settings.embedding_model,
             base_url=settings.embedding_api_base,
         )
-        self.vectorstore = Chroma(
-            collection_name="knowledge_base",
-            embedding_function=self.embeddings,
-            persist_directory=settings.chroma_db_path,
-            collection_metadata={"hnsw:space": "cosine"},
+        self.store = ChromaVectorStore(embeddings, settings.chroma_db_path)
+        chunker = StructureAwareChunker(ChunkingConfig(
+            chunk_size=settings.rag_chunk_size,
+            chunk_overlap=settings.rag_chunk_overlap,
+        ))
+        self.ingestion = IngestionService(store=self.store, chunker=chunker)
+        self.retrieval = RetrievalService(
+            self.store,
+            fetch_k=settings.rag_fetch_k,
+            lambda_mult=settings.rag_mmr_lambda,
+            hybrid_enabled=settings.rag_hybrid_enabled,
+            lexical_weight=settings.rag_lexical_weight,
+            rrf_k=settings.rag_rrf_k,
         )
         self._ensure_seeded()
 
-    def _ensure_seeded(self):
-        """默认关闭（SEED_DEMO_DATA=False）。开启且集合为空时才种演示数据。"""
-        if not settings.seed_demo_data:
+    def _ensure_seeded(self) -> None:
+        if not settings.seed_demo_data or self.count() > 0:
             return
-        if self.vectorstore._collection.count() > 0:
-            return
-        texts = [
-            "用户激活流程：下单后按随卡说明完成实名认证，再激活使用。",
-            "退卡政策：激活后如需注销，可在运营商 APP 内自助销户或联系客服。",
-        ]
-        metadatas = [
-            {"category": "demo", "title": "激活流程", "tags": "激活,实名"},
-            {"category": "demo", "title": "注销政策", "tags": "注销,销户"},
-        ]
-        ids = [f"seed_demo_{i}" for i in range(len(texts))]
-        self.vectorstore.add_texts(texts, metadatas=metadatas, ids=ids)
-
-    # ── 写入 ────────────────────────────────────────────────
-
-    def add_chunks(self, chunks) -> None:
-        """批量写入 Chunk 列表（与 SQLite 每行严格 1:1）。"""
-        self.vectorstore.add_texts(
-            texts=[c.content for c in chunks],
-            metadatas=[c.metadata() for c in chunks],
-            ids=[c.id for c in chunks],
+        prepared = self.ingestion.prepare_text(
+            doc_id="seed-demo",
+            title="演示知识",
+            content=(
+                "## 激活流程\n下单后按随卡说明完成实名认证，再激活使用。\n\n"
+                "## 注销政策\n可在运营商 APP 内自助销户或联系客服。"
+            ),
+            category="demo",
+            tags=("激活", "注销"),
+            source="seed",
         )
+        self.ingestion.ingest(prepared)
 
-    def clear_all(self) -> None:
-        """清空整个集合（重灌前调用，幂等）。"""
-        existing = self.vectorstore.get()
-        ids = existing.get("ids") or []
-        if ids:
-            self.vectorstore.delete(ids)
+    def prepare_file(self, path: Path, metadata: Dict[str, Any] | None = None) -> PreparedDocument:
+        return self.ingestion.prepare_file(path, metadata)
 
-    # ── 读取 ────────────────────────────────────────────────
+    def prepare_text(self, **kwargs: Any) -> PreparedDocument:
+        return self.ingestion.prepare_text(**kwargs)
 
-    def search(self, query: str, k: int = 5,
-               category: Optional[str] = None) -> List[Dict[str, Any]]:
-        """语义检索，返回 [{content, metadata, score}]。"""
-        filter_ = {"category": category} if category else None
-        docs_and_scores = self.vectorstore.similarity_search_with_score(
-            query, k=k, filter=filter_
-        )
-        results = []
-        for doc, distance in docs_and_scores:
-            content = doc.page_content
-            if len(content) > 500:
-                content = content[:500] + "..."
-            m = doc.metadata
-            results.append({
-                "content": content,
-                "metadata": {
-                    "doc_id": m.get("doc_id"),
-                    "title": m.get("title"),
-                    "section": m.get("section"),
-                    "chunk_index": m.get("chunk_index"),
-                    "category": m.get("category"),
-                    "tags": [t.strip() for t in (m.get("tags") or "").split(",") if t.strip()],
-                    "source": m.get("source"),
-                },
-                "score": round(max(0.0, min(1.0, 1.0 - distance)), 4),
-            })
-        return results
+    def ingest(self, prepared: PreparedDocument, force: bool = False) -> IngestionResult:
+        return self.ingestion.ingest(prepared, force=force)
+
+    def add_chunks(self, chunks: Sequence[RagChunk]) -> None:
+        """兼容旧调用；新摄入代码应优先使用 ingest。"""
+        self.store.upsert_chunks(chunks)
+
+    def delete_document(self, doc_id: str) -> int:
+        return self.ingestion.delete(doc_id)
+
+    def clear_all(self) -> int:
+        """仅供显式重建使用，普通入库不再调用。"""
+        return self.store.clear_all()
+
+    def retrieve(
+        self, query: str, k: int = 6, category: Optional[str] = None
+    ) -> List[Document]:
+        return self.retrieval.retrieve(query, k=k, category=category)
+
+    def search(
+        self, query: str, k: int = 5, category: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        return self.retrieval.search(query, k=k, category=category)
 
     def get_all_documents(self) -> List[Document]:
-        """返回集合内全部 Document（含 metadata）。"""
-        data = self.vectorstore.get()
-        metadatas = data.get("metadatas") or []
-        return [
-            Document(
-                page_content=content,
-                metadata=metadatas[i] if i < len(metadatas) else {},
-            )
-            for i, content in enumerate(data.get("documents") or [])
-        ]
+        return self.store.get_all_documents()
 
     def count(self) -> int:
-        return self.vectorstore._collection.count()
+        return self.store.count()
 
 
-# 共享单例：API 生命周期与独立脚本共用同一个向量库连接。
 _kb_manager: Optional[KnowledgeBaseManager] = None
 
 
 def get_knowledge_base() -> KnowledgeBaseManager:
-    """返回共享单例，首次调用时创建。"""
     global _kb_manager
     if _kb_manager is None:
         _kb_manager = KnowledgeBaseManager()
@@ -128,5 +108,4 @@ def get_knowledge_base() -> KnowledgeBaseManager:
 
 
 def initialize_knowledge_base() -> KnowledgeBaseManager:
-    """应用启动时调用：初始化（创建表/集合）。返回共享单例。"""
     return get_knowledge_base()

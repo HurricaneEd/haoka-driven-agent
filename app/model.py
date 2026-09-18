@@ -14,7 +14,6 @@ class ChatRequest(BaseModel):
     """Request model for chat endpoint."""
     message: str = Field(..., description="User message")
     session_id: Optional[str] = Field(None, description="Session ID for conversation continuity")
-    user_id: Optional[str] = Field(None, description="User identifier")
 
 
 class ChatResponse(BaseModel):
@@ -23,7 +22,24 @@ class ChatResponse(BaseModel):
     session_id: str = Field(..., description="Session ID")
     conversation_id: str = Field(..., description="Conversation ID")
     sources: Optional[List[Dict[str, Any]]] = Field(None, description="Sources used for response")
-    confidence: float = Field(..., description="Confidence score of the response")
+
+
+class AuthCredentials(BaseModel):
+    """Credentials used to register or sign in."""
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class AuthUser(BaseModel):
+    """Public user information."""
+    id: str
+    email: str
+
+
+class AuthResponse(BaseModel):
+    """Successful authentication response."""
+    token: str
+    user: AuthUser
 
 
 class ConversationHistory(BaseModel):
@@ -45,3 +61,25 @@ class KnowledgeBaseItem(BaseModel):
     tags: List[str] = []
     created_at: datetime
     updated_at: datetime
+
+
+class KnowledgeDocumentItem(BaseModel):
+    """Document-level knowledge base status returned to the management UI."""
+    doc_id: str
+    title: str
+    filename: str
+    category: str
+    tags: List[str] = Field(default_factory=list)
+    status: str
+    chunk_count: int
+    file_size: int
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class KnowledgeChunkItem(BaseModel):
+    id: str
+    section: str
+    chunk_index: int
+    content: str

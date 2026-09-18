@@ -1,0 +1,15 @@
+.env
+.venv
+.git
+.gitignore
+.idea
+__pycache__/
+*.py[cod]
+chroma_db/
+customer_support.db
+product/
+.pytest_cache/
+.ruff_cache/
+dockerfile
+Dockerfile
+docker-compose.yml

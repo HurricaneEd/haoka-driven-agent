@@ -16,6 +16,11 @@ __pycache__/
 
 # 向量库（可由 scripts/ingest_products.py 重建，不该入库）
 chroma_db/
+knowledge_uploads/
+# 产品文件
+product/
+# 导入脚本
+scripts/
 
 # 环境变量（保留 .env.example 入库，忽略本地的副本）
 .env.*

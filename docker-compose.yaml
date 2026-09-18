@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: haoka-agent
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+    env_file:
+      - .env
+    volumes:
+      - ./chroma_db:/usr/src/app/chroma_db
+      - ./customer_support.db:/usr/src/app/customer_support.db
+    restart: unless-stopped

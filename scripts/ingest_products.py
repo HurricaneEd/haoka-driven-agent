@@ -1,104 +1,128 @@
 # -*- coding: utf-8 -*-
-"""产品知识库入库脚本（清空重建，幂等可重跑）。
+"""增量摄入 product 目录中的知识文档。
 
-双写：Chroma（检索大脑） + SQLite knowledge_base（台账/镜像），两库 1:1。
-
-用法：
-    python scripts/ingest_products.py                # Chroma + SQLite 双写
-    python scripts/ingest_products.py --sqlite-only  # 只写 SQLite（无 API Key 时调试切分/入库）
-
-流程：
-    1. 清空 Chroma 集合 + SQLite knowledge_base 表
-    2. 遍历 product/*.md → MarkdownHeaderTextSplitter 切分 → 组装 Chunk
-    3. 双写：Chroma add_texts + SQLite 逐行插入（id 完全一致）
+支持 md/markdown/txt/html/csv/pdf/docx/xlsx。默认按文档内容哈希跳过未变化文档，
+变化时只替换对应 doc_id，不再清空整库。
 """
+
 import argparse
 import sys
 from pathlib import Path
 
-# 保证从任意 cwd 启动都能 import config / app
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import delete
-
-from app.database import SessionLocal, KnowledgeBase, init_db
+from app.database import DatabaseManager, SessionLocal, init_db
 from app.knowledge_base import KnowledgeBaseManager
-from app.split.split import split_product_file
+from app.rag.chunkers import ChunkingConfig, StructureAwareChunker
+from app.rag.ingestion import IngestionService
+from app.rag.parsers import DocumentParserRegistry
+from config import settings
 
 PRODUCT_DIR = Path(__file__).resolve().parents[1] / "product"
 
 
-def clear_sqlite() -> None:
-    """清空 SQLite knowledge_base 表（幂等）。"""
+def build_local_pipeline() -> IngestionService:
+    return IngestionService(
+        store=None,
+        parser_registry=DocumentParserRegistry(),
+        chunker=StructureAwareChunker(ChunkingConfig(
+            chunk_size=settings.rag_chunk_size,
+            chunk_overlap=settings.rag_chunk_overlap,
+        )),
+    )
+
+
+def sync_sqlite(prepared, path: Path) -> None:
     db = SessionLocal()
     try:
-        db.execute(delete(KnowledgeBase))
-        db.commit()
-        print("SQLite: knowledge_base 已清空")
+        manager = DatabaseManager(db)
+        manager.replace_knowledge_document(prepared.chunks)
+        manager.upsert_knowledge_document(
+            doc_id=prepared.document.doc_id,
+            title=prepared.document.title,
+            filename=path.name,
+            source=prepared.document.source,
+            category=prepared.document.category,
+            tags=",".join(prepared.document.tags),
+            chunk_count=len(prepared.chunks),
+            file_size=path.stat().st_size,
+            content_hash=prepared.document.content_hash,
+            status="ready",
+        )
     finally:
         db.close()
+
+
+def delete_document(doc_id: str, kb: KnowledgeBaseManager | None) -> None:
+    vector_count = kb.delete_document(doc_id) if kb else 0
+    db = SessionLocal()
+    try:
+        manager = DatabaseManager(db)
+        sqlite_count = manager.delete_knowledge_document(doc_id)
+        manager.delete_knowledge_document_record(doc_id)
+    finally:
+        db.close()
+    print(f"已删除 {doc_id}：Chroma {vector_count} 块，SQLite {sqlite_count} 行")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="产品知识库入库（清空重建，幂等可重跑）")
-    parser.add_argument("--sqlite-only", action="store_true",
-                        help="只写 SQLite，跳过 Chroma（无 API Key 时调试用）")
+    parser = argparse.ArgumentParser(description="产品知识库增量摄入")
+    parser.add_argument(
+        "--sqlite-only", action="store_true",
+        help="只更新 SQLite 镜像，不连接 Embedding API 和 Chroma",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="即使文档哈希未变化，也重新生成向量",
+    )
+    parser.add_argument(
+        "--delete-doc", metavar="DOC_ID",
+        help="删除指定文档及其全部知识块，不执行目录摄入",
+    )
     args = parser.parse_args()
 
-    md_files = sorted(PRODUCT_DIR.glob("*.md"))
-    if not md_files:
-        print(f"✗ 未在 {PRODUCT_DIR} 找到任何 .md 文件")
+    init_db()
+    kb = None if args.sqlite_only else KnowledgeBaseManager()
+    if args.delete_doc:
+        delete_document(args.delete_doc, kb)
+        return
+
+    local_pipeline = build_local_pipeline()
+    files = sorted(
+        path for path in PRODUCT_DIR.iterdir()
+        if path.is_file() and local_pipeline.parsers.supports(path)
+    )
+    if not files:
+        supported = ", ".join(local_pipeline.parsers.supported_suffixes)
+        print(f"未在 {PRODUCT_DIR} 找到支持的文档（{supported}）")
         sys.exit(1)
 
-    init_db()  # 确保表存在
+    indexed = skipped = failed = total_chunks = 0
+    for path in files:
+        try:
+            source = path.relative_to(PRODUCT_DIR.parent).as_posix()
+            prepared = local_pipeline.prepare_file(
+                path, {"category": "product", "source": source}
+            )
+            if kb:
+                result = kb.ingest(prepared, force=args.force)
+                indexed += result.status == "indexed"
+                skipped += result.status == "skipped"
+                state = "已更新" if result.status == "indexed" else "未变化"
+            else:
+                state = "SQLite 已同步"
+            sync_sqlite(prepared, path)
+            total_chunks += len(prepared.chunks)
+            print(f"{path.name}: {prepared.document.doc_id} -> {len(prepared.chunks)} 块（{state}）")
+        except Exception as exc:
+            failed += 1
+            print(f"{path.name}: 摄入失败：{exc}")
 
-    kb = None
-    if not args.sqlite_only:
-        kb = KnowledgeBaseManager()
-        kb.clear_all()
-        print("Chroma: knowledge_base 集合已清空")
-    clear_sqlite()
-
-    total = 0
-    db = SessionLocal()
-    try:
-        for path in md_files:
-            fm, chunks = split_product_file(path)
-            print(f"  {path.name}: doc_id={fm.get('doc_id')} -> {len(chunks)} 块")
-
-            if kb is not None:
-                kb.add_chunks(chunks)
-
-            db.add_all([
-                KnowledgeBase(
-                    id=c.id,
-                    doc_id=c.doc_id,
-                    title=c.title,
-                    section=c.section,
-                    chunk_index=c.chunk_index,
-                    content=c.content,
-                    category=c.category,
-                    tags=c.tags,
-                    source=c.source,
-                )
-                for c in chunks
-            ])
-            total += len(chunks)
-        db.commit()
-    finally:
-        db.close()
-
-    print(f"✓ 完成：{len(md_files)} 份文档，共 {total} 块")
-    if kb is not None:
-        print(f"  Chroma 集合 count = {kb.count()}")
-    print("  SQLite knowledge_base 行数 = ", end="")
-    db = SessionLocal()
-    try:
-        from sqlalchemy import func, select
-        rows = db.execute(select(func.count()).select_from(KnowledgeBase)).scalar()
-        print(rows)
-    finally:
-        db.close()
+    print(f"完成：{len(files) - failed}/{len(files)} 份文档，共 {total_chunks} 块")
+    if kb:
+        print(f"向量更新 {indexed} 份，跳过 {skipped} 份；Chroma 共 {kb.count()} 块")
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
