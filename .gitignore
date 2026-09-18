@@ -3,7 +3,6 @@
 
 # file
 .venv
-knowledge-ingestion-plan.md
 customer_support.db
 
 # Python
@@ -17,10 +16,6 @@ __pycache__/
 # 向量库（可由 scripts/ingest_products.py 重建，不该入库）
 chroma_db/
 knowledge_uploads/
-# 产品文件
-product/
-# 导入脚本
-scripts/
 
 # 环境变量（保留 .env.example 入库，忽略本地的副本）
 .env.*
@@ -44,4 +39,39 @@ build/
 .DS_Store
 Thumbs.db
 
-.claude/settings.local.json
+# 本地设计/开发工具状态
+.impeccable/
+.vscode/
+
+# SQLite 运行时文件
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# 数据库和向量库备份
+*.db.bak*
+chroma_db*.bak*
+*.backup
+
+# 测试覆盖率
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# Python 额外缓存
+.pytype/
+.pyre/
+*.pyd
+*.pyo
+
+# 临时运行目录
+.qa-runtime/
+*.tmp
+*.swp
+
+
