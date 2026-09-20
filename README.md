@@ -70,10 +70,6 @@ docker compose up -d --build
 
 用户登录后直接上传 `product/` 中的示例 Markdown 即可建立索引。
 
-Docker 会将用户、会话和知识库父文档保存在宿主机的 `data/` 目录中，向量索引保存在 `chroma_db/`。上传的 Markdown 原文件不做持久化；重新创建容器后，已有索引仍可使用，需要重新处理时可再次上传 `product/` 中的示例文档。
-
-如果旧版 Docker 部署的项目根目录中已经存在 `customer_support.db`，首次使用新配置前，请先将它复制到 `data/customer_support.db`；全新部署无需执行这一步。
-
 然后访问：
 
 - Web 页面：<http://localhost:8000>
@@ -128,3 +124,9 @@ app/
 product/                      # 示例商品 Markdown
 index.html                    # Web 页面
 ```
+
+## 部分截图
+
+![image-20260920142003032](C:\Users\86183\AppData\Roaming\Typora\typora-user-images\image-20260920142003032.png)
+
+![image-20260920141852892](C:\Users\86183\AppData\Roaming\Typora\typora-user-images\image-20260920141852892.png)
