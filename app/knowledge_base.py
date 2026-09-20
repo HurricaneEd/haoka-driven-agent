@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 from app.rag.chunkers import ChunkingConfig, StructureAwareChunker
 from app.rag.embeddings import SiliconFlowEmbeddings
 from app.rag.ingestion import IngestionService, PreparedDocument
+from app.rag.parents import SqliteParentStore
 from app.rag.retrieval import RetrievalService
 from app.rag.schemas import IngestionResult, RagChunk
 from app.rag.stores import ChromaVectorStore
@@ -29,13 +30,17 @@ class KnowledgeBaseManager:
             base_url=settings.embedding_api_base,
         )
         self.store = ChromaVectorStore(embeddings, settings.chroma_db_path)
+        self.parent_store = SqliteParentStore()
         chunker = StructureAwareChunker(ChunkingConfig(
-            chunk_size=settings.rag_chunk_size,
-            chunk_overlap=settings.rag_chunk_overlap,
+            chunk_size=settings.rag_child_chunk_size,
+            chunk_overlap=settings.rag_child_chunk_overlap,
         ))
-        self.ingestion = IngestionService(store=self.store, chunker=chunker)
+        self.ingestion = IngestionService(
+            store=self.store, chunker=chunker, parent_store=self.parent_store
+        )
         self.retrieval = RetrievalService(
             self.store,
+            parent_store=self.parent_store,
             fetch_k=settings.rag_fetch_k,
             lambda_mult=settings.rag_mmr_lambda,
             hybrid_enabled=settings.rag_hybrid_enabled,
@@ -78,7 +83,9 @@ class KnowledgeBaseManager:
 
     def clear_all(self) -> int:
         """仅供显式重建使用，普通入库不再调用。"""
-        return self.store.clear_all()
+        count = self.store.clear_all()
+        self.parent_store.clear()
+        return count
 
     def retrieve(
         self, query: str, k: int = 6, category: Optional[str] = None

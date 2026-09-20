@@ -19,10 +19,6 @@ sqlalchemy>=2.0.23
 # Data processing and validation
 pydantic>=2.7.4,<3.0.0
 pydantic-settings>=2.1.0
-PyYAML>=6.0.0
-pdfplumber>=0.11.0
-python-docx>=1.1.0
-openpyxl>=3.1.0
 
 # Environment and configuration
 python-dotenv==1.0.0

@@ -20,6 +20,14 @@ class IngestionStore(Protocol):
         ...
 
 
+class ParentStore(Protocol):
+    def upsert(self, document: RagDocument) -> None:
+        ...
+
+    def delete(self, doc_id: str) -> bool:
+        ...
+
+
 @dataclass(frozen=True)
 class PreparedDocument:
     document: RagDocument
@@ -32,10 +40,12 @@ class IngestionService:
         store: IngestionStore | None,
         parser_registry: DocumentParserRegistry | None = None,
         chunker: StructureAwareChunker | None = None,
+        parent_store: ParentStore | None = None,
     ) -> None:
         self.store = store
         self.parsers = parser_registry or DocumentParserRegistry()
         self.chunker = chunker or StructureAwareChunker()
+        self.parent_store = parent_store
 
     def prepare_file(self, path: Path, metadata: Dict[str, Any] | None = None) -> PreparedDocument:
         document = self.parsers.parse(path, metadata)
@@ -66,12 +76,19 @@ class IngestionService:
             raise RuntimeError("当前 IngestionService 未配置向量存储")
         document = prepared.document
         if not force and self.store.get_document_hash(document.doc_id) == document.content_hash:
+            if self.parent_store:
+                self.parent_store.upsert(document)
             return IngestionResult(document.doc_id, "skipped", len(prepared.chunks), document.content_hash)
         self.store.replace_document(document.doc_id, prepared.chunks)
+        if self.parent_store:
+            self.parent_store.upsert(document)
         return IngestionResult(document.doc_id, "indexed", len(prepared.chunks), document.content_hash)
 
     def delete(self, doc_id: str) -> int:
         if self.store is None:
             raise RuntimeError("当前 IngestionService 未配置向量存储")
-        return self.store.delete_document(doc_id)
+        count = self.store.delete_document(doc_id)
+        if self.parent_store:
+            self.parent_store.delete(doc_id)
+        return count
 

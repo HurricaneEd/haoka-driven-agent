@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 import app.api as api_module
 import app.knowledge_documents as document_service
+from app.database import DatabaseManager, SessionLocal
 from app.rag.chunkers import ChunkingConfig, StructureAwareChunker
 from app.rag.ingestion import IngestionService
 
@@ -75,6 +76,13 @@ class KnowledgeApiTests(unittest.TestCase):
         document = next(item for item in listed.json() if item["doc_id"] == doc_id)
         self.assertEqual(document["status"], "ready")
         self.assertEqual(document["chunk_count"], 1)
+        db = SessionLocal()
+        try:
+            parent = DatabaseManager(db).get_knowledge_parent(doc_id)
+            self.assertIsNotNone(parent)
+            self.assertIn("# Policy", parent.content)
+        finally:
+            db.close()
 
         chunks = self.client.get(
             f"/knowledge/documents/{doc_id}/chunks", headers=self.headers
@@ -94,13 +102,85 @@ class KnowledgeApiTests(unittest.TestCase):
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(list((_root / "uploads").glob("*")))
 
-    def test_rejects_unsupported_file(self):
-        response = self.client.post(
+    def test_change_password_keeps_current_session_and_revokes_others(self):
+        email = "profile@example.com"
+        old_password = "old-password-123"
+        new_password = "new-password-456"
+        registered = self.client.post(
+            "/auth/register", json={"email": email, "password": old_password}
+        )
+        self.assertEqual(registered.status_code, 201, registered.text)
+        current_token = registered.json()["token"]
+        second_login = self.client.post(
+            "/auth/login", json={"email": email, "password": old_password}
+        )
+        second_token = second_login.json()["token"]
+
+        wrong = self.client.put(
+            "/auth/password",
+            headers={"Authorization": f"Bearer {current_token}"},
+            json={"current_password": "wrong-password", "new_password": new_password},
+        )
+        self.assertEqual(wrong.status_code, 400)
+
+        changed = self.client.put(
+            "/auth/password",
+            headers={"Authorization": f"Bearer {current_token}"},
+            json={"current_password": old_password, "new_password": new_password},
+        )
+        self.assertEqual(changed.status_code, 200, changed.text)
+        self.assertEqual(
+            self.client.get(
+                "/auth/me", headers={"Authorization": f"Bearer {current_token}"}
+            ).status_code,
+            200,
+        )
+        self.assertEqual(
+            self.client.get(
+                "/auth/me", headers={"Authorization": f"Bearer {second_token}"}
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/auth/login", json={"email": email, "password": old_password}
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/auth/login", json={"email": email, "password": new_password}
+            ).status_code,
+            200,
+        )
+
+    def test_rejects_non_md_files(self):
+        for filename in (
+            "notes.markdown", "notes.txt", "data.csv", "page.html",
+            "manual.pdf", "policy.docx", "plans.xlsx",
+        ):
+            with self.subTest(filename=filename):
+                response = self.client.post(
+                    "/knowledge/documents",
+                    headers=self.headers,
+                    files={"file": (filename, b"not allowed", "application/octet-stream")},
+                )
+                self.assertEqual(response.status_code, 400)
+
+    def test_upload_uses_first_h1_as_default_title(self):
+        upload = self.client.post(
             "/knowledge/documents",
             headers=self.headers,
-            files={"file": ("payload.exe", b"not allowed", "application/octet-stream")},
+            files={"file": ("dx-maoxing.md", "# 电信猫星卡示例\n\n## 资费\n\n示例内容。".encode("utf-8"), "text/markdown")},
+            data={"title": "", "category": "product", "tags": ""},
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(upload.status_code, 202, upload.text)
+        self.assertEqual(upload.json()["title"], "电信猫星卡示例")
+        doc_id = upload.json()["doc_id"]
+        deleted = self.client.delete(
+            f"/knowledge/documents/{doc_id}", headers=self.headers
+        )
+        self.assertEqual(deleted.status_code, 200)
 
 
 if __name__ == "__main__":

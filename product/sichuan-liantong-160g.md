@@ -1,11 +1,3 @@
-```markdown
----
-doc_id: sichuan-liantong-160g
-category: product
-tags: 联通,流量卡,四川
----
-```
-
 # **四川联通30元160G通用+100分钟【只发四川】**
 
 ## 商品特色

@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     embedding_api_key: str = ""                 # 留空则回退用 siliconflow_api_key
     embedding_model: str = "BAAI/bge-large-zh-v1.5"
     # RAG 切分与 MMR 检索参数（字符数，适合中英文混合客服资料）
-    rag_chunk_size: int = 800
-    rag_chunk_overlap: int = 120
+    rag_child_chunk_size: int = 400
+    rag_child_chunk_overlap: int = 60
     rag_fetch_k: int = 30
     rag_mmr_lambda: float = 0.7
     rag_hybrid_enabled: bool = True

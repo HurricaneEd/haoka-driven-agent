@@ -37,7 +37,7 @@
 |---|---|---:|---|
 | [AgentDesk](https://github.com/huabeitech/agent-desk) | 完整 AI Helpdesk：知识库、AI Agent、人工接管、工单、坐席工作台 | 高（产品层） | 最值得作为产品形态参考；若接受 Go + Next.js，可考虑 fork 改造 |
 | [Basjoo](https://github.com/haoyiyin/basjoo) | FastAPI + Next.js 的 AI 客服平台，含 Agent 配置、聊天、索引、认证和调度 | 很高（技术栈） | 最接近当前 Python/FastAPI 背景，适合重点评估迁移成本 |
-| [langgraph-customer-support-agent](https://github.com/aperritano/langgraph-customer-support-agent) | LangGraph 客服 Agent 教学/演示项目，含工具调用、mock 订单、向量检索和测试样例 | 中（学习） | 只适合参考图编排；不应视为完整客服底座 |
+| [langgraph-customer-support-agent](https://github.com/aperritano/langgraph-customer-support-agent) | LangGraph 客服 Agent 教学/演示项目，含工具调用、向量检索和测试样例 | 中（学习） | 只适合参考图编排；不应视为完整客服底座 |
 | [ChatBotAI](https://github.com/ahmetgkdemr/ChatBotAI) | FastAPI + Angular + PostgreSQL/pgvector + Ollama 的本地 RAG 客服 | 中高（RAG） | 适合参考本地部署、来源展示、向量检索；完整 Agent 能力相对弱 |
 | [multi-agent-rag-customer-support](https://github.com/ro-anderson/multi-agent-rag-customer-support) | Python、LangChain、LangGraph 的多 Agent RAG 客服示例 | 中（学习） | 适合研究路由、Corrective RAG、Self-RAG；不建议直接作为生产底座 |
 | [AI Customer Support Agent](https://github.com/jawwad-ali/ai-customer-support-agent) | OpenAI Agents SDK + FastAPI + PostgreSQL/pgvector + Redis + Next.js，多渠道客服 | 中（产品参考） | 适合参考多渠道、人工转接和生产化组件，但会引入较大技术栈变化 |
@@ -60,9 +60,9 @@ Basjoo 使用 FastAPI 后端，覆盖 Agent 配置、聊天、知识库索引、
 
 该项目的 `main` 分支确实包含 `StateGraph`、`ToolNode`、工具函数、`SupportState`、向量检索实现、`tests/` 目录和 `langgraph.json`。其图是一个很小的 ReAct 循环：`agent -> tools -> agent`，工具数据主要来自内存中的 mock 数据。[agent.py](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/src/support_agent/agent.py)、[tools.py](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/src/support_agent/tools.py)
 
-但它不是完整客服系统：订单、库存和退货都是 mock；人工升级只是根据消息计算 ticket 编号、打印一条日志并返回模拟的“已分配/15 分钟响应”文本，并没有客服坐席、工单持久化或真实通知通道。[tools.py](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/src/support_agent/tools.py)
+但它不是完整客服系统：业务工具使用模拟数据；人工升级只是根据消息计算 ticket 编号、打印一条日志并返回模拟的“已分配/15 分钟响应”文本，并没有客服坐席、工单持久化或真实通知通道。[tools.py](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/src/support_agent/tools.py)
 
-它的会话状态只有一个 `messages` 字段；`agent.py` 默认使用 `workflow.compile()`，没有在应用代码中配置持久化 checkpointer。所谓 REST API 主要是通过 `langgraph dev` 提供的开发服务，而不是仓库自建的 FastAPI 业务 API。README 自己的 “Next Steps” 也把接入真实订单系统、增加认证、创建 React UI 等列为后续工作。[README](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/README.md)
+它的会话状态只有一个 `messages` 字段；`agent.py` 默认使用 `workflow.compile()`，没有在应用代码中配置持久化 checkpointer。所谓 REST API 主要是通过 `langgraph dev` 提供的开发服务，而不是仓库自建的 FastAPI 业务 API。README 自己的 “Next Steps” 也把接入真实业务系统、增加认证、创建 React UI 等列为后续工作。[README](https://github.com/aperritano/langgraph-customer-support-agent/blob/main/README.md)
 
 另外，README 的“50+ unit tests”应谨慎理解为仓库作者的声明；仓库确实存在测试文件，但在没有实际安装依赖并运行测试的情况下，不能把 README 中的数量或通过状态当作已验证事实。
 
@@ -84,7 +84,7 @@ ChatBotAI 采用 FastAPI、Angular、PostgreSQL/pgvector、Ollama 和 sentence-t
 
 ## 不建议的做法
 
-- 不建议把项目直接改名为“RAG 系统”，因为订单、转人工、密码重置和会话管理都属于客服业务能力。
+- 不建议把项目直接改名为“RAG 系统”，因为账号与会话管理也属于客服业务能力。
 - 不建议一开始就改成多 Agent。当前单 Agent + 工具已经能表达业务，先把路由、状态、检索质量和人工升级做好。
 - 不建议直接复制某个仓库的全部代码。优先提取领域模型、状态机、工具边界、知识库生命周期和评估方法。
 

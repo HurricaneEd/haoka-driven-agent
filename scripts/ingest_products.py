@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """增量摄入 product 目录中的知识文档。
 
-支持 md/markdown/txt/html/csv/pdf/docx/xlsx。默认按文档内容哈希跳过未变化文档，
+仅支持 .md 文件。默认按文档内容哈希跳过未变化文档，
 变化时只替换对应 doc_id，不再清空整库。
 """
 
@@ -26,8 +26,8 @@ def build_local_pipeline() -> IngestionService:
         store=None,
         parser_registry=DocumentParserRegistry(),
         chunker=StructureAwareChunker(ChunkingConfig(
-            chunk_size=settings.rag_chunk_size,
-            chunk_overlap=settings.rag_chunk_overlap,
+            chunk_size=settings.rag_child_chunk_size,
+            chunk_overlap=settings.rag_child_chunk_overlap,
         )),
     )
 
@@ -36,6 +36,7 @@ def sync_sqlite(prepared, path: Path) -> None:
     db = SessionLocal()
     try:
         manager = DatabaseManager(db)
+        manager.upsert_knowledge_parent(prepared.document)
         manager.replace_knowledge_document(prepared.chunks)
         manager.upsert_knowledge_document(
             doc_id=prepared.document.doc_id,
@@ -59,6 +60,7 @@ def delete_document(doc_id: str, kb: KnowledgeBaseManager | None) -> None:
     try:
         manager = DatabaseManager(db)
         sqlite_count = manager.delete_knowledge_document(doc_id)
+        manager.delete_knowledge_parent(doc_id)
         manager.delete_knowledge_document_record(doc_id)
     finally:
         db.close()
@@ -98,12 +100,14 @@ def main() -> None:
         sys.exit(1)
 
     indexed = skipped = failed = total_chunks = 0
+    current_doc_ids: set[str] = set()
     for path in files:
         try:
             source = path.relative_to(PRODUCT_DIR.parent).as_posix()
             prepared = local_pipeline.prepare_file(
                 path, {"category": "product", "source": source}
             )
+            current_doc_ids.add(prepared.document.doc_id)
             if kb:
                 result = kb.ingest(prepared, force=args.force)
                 indexed += result.status == "indexed"
@@ -117,6 +121,21 @@ def main() -> None:
         except Exception as exc:
             failed += 1
             print(f"{path.name}: 摄入失败：{exc}")
+
+    if not failed:
+        db = SessionLocal()
+        try:
+            manager = DatabaseManager(db)
+            stale = [
+                record.doc_id for record in manager.get_knowledge_documents()
+                if record.category == "product"
+                and record.source.replace("\\", "/").startswith("product/")
+                and record.doc_id not in current_doc_ids
+            ]
+        finally:
+            db.close()
+        for doc_id in stale:
+            delete_document(doc_id, kb)
 
     print(f"完成：{len(files) - failed}/{len(files)} 份文档，共 {total_chunks} 块")
     if kb:

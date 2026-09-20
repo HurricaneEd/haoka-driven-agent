@@ -13,9 +13,10 @@ __pycache__/
 .idea/
 *.iml
 
-# 向量库（可由 scripts/ingest_products.py 重建，不该入库）
+# 运行时数据
 chroma_db/
 knowledge_uploads/
+data/
 
 # 环境变量（保留 .env.example 入库，忽略本地的副本）
 .env.*
@@ -74,4 +75,5 @@ htmlcov/
 *.tmp
 *.swp
 
-
+# 本地批量摄入脚本
+scripts/ingest_products.py

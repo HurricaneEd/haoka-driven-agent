@@ -42,6 +42,12 @@ class AuthResponse(BaseModel):
     user: AuthUser
 
 
+class PasswordChangeRequest(BaseModel):
+    """Authenticated password change request."""
+    current_password: str = Field(..., min_length=8, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class ConversationHistory(BaseModel):
     """Model for conversation history."""
     conversation_id: str

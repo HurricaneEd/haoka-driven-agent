@@ -1,11 +1,3 @@
-```markdown
----
-doc_id: dianxin-maoxing      
-category: product
-tags: 电信,猫星卡,流量卡
----
-```
-
 # **电信猫星卡29元150G+100分钟【发全国】**
 
 ## 商品特色

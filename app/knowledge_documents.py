@@ -116,6 +116,7 @@ def process_knowledge_document(doc_id: str) -> None:
                 "source": record.source,
             })
             get_knowledge_base().ingest(prepared)
+            manager.upsert_knowledge_parent(prepared.document)
             manager.replace_knowledge_document(prepared.chunks)
             manager.upsert_knowledge_document(
                 doc_id=record.doc_id,
@@ -152,6 +153,7 @@ def delete_knowledge_document(doc_id: str) -> bool:
             source = record.source
             get_knowledge_base().delete_document(doc_id)
             manager.delete_knowledge_document(doc_id)
+            manager.delete_knowledge_parent(doc_id)
             manager.delete_knowledge_document_record(doc_id)
 
             path = resolve_source(source)

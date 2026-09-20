@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 from typing import Optional,List
+import json
 
 from sqlalchemy import create_engine, DateTime, Text, String, Integer, select, func, delete
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
@@ -76,7 +77,7 @@ class KnowledgeBase(Base):
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     # ↑ 与 Chroma id 一致，由 doc_id + 块内容哈希组成，章节前移时不会整体漂移。
 
-    doc_id: Mapped[str] = mapped_column(String(64), index=True)   # 源文档标识（frontmatter）
+    doc_id: Mapped[str] = mapped_column(String(64), index=True)   # 源文档标识（文件名或系统生成）
     title: Mapped[str] = mapped_column(String(128))               # 产品名（沿用原 title 字段）
     section: Mapped[str] = mapped_column(String(256))             # 结构路径，如 售后/注销
     chunk_index: Mapped[int] = mapped_column(Integer)             # 文档内块序号（0 起）
@@ -109,6 +110,22 @@ class KnowledgeDocument(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, onupdate=datetime.now
     )
+
+
+class KnowledgeParent(Base):
+    """文档级父块：保存一份商品的完整 Markdown，供子块命中后展开。"""
+    __tablename__ = "knowledge_parents"
+
+    doc_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(512), nullable=False)
+    category: Mapped[str] = mapped_column(String(64), default="knowledge", index=True)
+    tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+    aliases: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 def get_db() -> Session:
     """Get database session."""
@@ -182,6 +199,23 @@ class DatabaseManager:
         if session:
             self.db.delete(session)
             self.db.commit()
+
+    def update_user_password(
+        self,
+        user_id: str,
+        password_hash: str,
+        keep_token_hash: Optional[str] = None,
+    ) -> bool:
+        user = self.db.get(UserAccount, user_id)
+        if not user:
+            return False
+        user.password_hash = password_hash
+        stmt = delete(AuthSession).where(AuthSession.user_id == user_id)
+        if keep_token_hash:
+            stmt = stmt.where(AuthSession.token_hash != keep_token_hash)
+        self.db.execute(stmt)
+        self.db.commit()
+        return True
 
     # 3. 添加消息
     def add_message(self, conversation_id: str, role: str, content: str) -> Message:
@@ -273,6 +307,45 @@ class DatabaseManager:
 
     def delete_knowledge_document(self, doc_id: str) -> int:
         result = self.db.execute(delete(KnowledgeBase).where(KnowledgeBase.doc_id == doc_id))
+        self.db.commit()
+        return result.rowcount or 0
+
+    def upsert_knowledge_parent(self, document) -> KnowledgeParent:
+        parent = self.db.get(KnowledgeParent, document.doc_id)
+        if not parent:
+            parent = KnowledgeParent(doc_id=document.doc_id, created_at=datetime.now())
+            self.db.add(parent)
+        parent.title = document.title
+        parent.content = document.content
+        parent.source = document.source
+        parent.category = document.category
+        parent.tags = json.dumps(list(document.tags), ensure_ascii=False)
+        parent.aliases = json.dumps(list(document.aliases), ensure_ascii=False)
+        parent.content_hash = document.content_hash
+        parent.updated_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(parent)
+        return parent
+
+    def get_knowledge_parent(self, doc_id: str) -> Optional[KnowledgeParent]:
+        return self.db.get(KnowledgeParent, doc_id)
+
+    def get_knowledge_parents(self, category: Optional[str] = None) -> List[KnowledgeParent]:
+        stmt = select(KnowledgeParent)
+        if category:
+            stmt = stmt.where(KnowledgeParent.category == category)
+        return list(self.db.execute(stmt.order_by(KnowledgeParent.title)).scalars().all())
+
+    def delete_knowledge_parent(self, doc_id: str) -> bool:
+        parent = self.db.get(KnowledgeParent, doc_id)
+        if not parent:
+            return False
+        self.db.delete(parent)
+        self.db.commit()
+        return True
+
+    def clear_knowledge_parents(self) -> int:
+        result = self.db.execute(delete(KnowledgeParent))
         self.db.commit()
         return result.rowcount or 0
 

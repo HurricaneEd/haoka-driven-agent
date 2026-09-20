@@ -233,18 +233,17 @@
         }
         .nav-btn:hover { background: #f3f7f9; color: var(--text-primary); }
         .nav-btn.active { background: #eaf3f4; color: var(--accent-hover); font-weight: 600; }
-        .new-chat {
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            width: 100%; padding: 12px;
-            background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text-primary);
-            font-family: var(--font); font-size: 14px; font-weight: 500;
-            cursor: pointer; transition: background .2s ease, border-color .2s ease, transform .2s ease;
-            box-shadow: 0 1px 2px rgba(36, 62, 82, 0.04);
+        .nav-monogram {
+            width: 16px;
+            height: 16px;
+            display: grid;
+            place-items: center;
+            border: 1px solid currentColor;
+            border-radius: 5px;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1;
         }
-        .new-chat:hover { background: #f4fafb; border-color: #b8d2d7; transform: translateY(-1px); }
         .main {
             flex: 1;
             display: flex;
@@ -298,23 +297,6 @@
             color: var(--text-primary);
         }
         .welcome p { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
-        .quick-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-top: 24px;
-        }
-        .quick-btn {
-            padding: 14px 16px;
-            background: rgba(255, 255, 255, 0.82);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text-primary);
-            font-family: var(--font); font-size: 14px; line-height: 1.45;
-            text-align: left; cursor: pointer; transition: background .2s ease, border-color .2s ease, transform .2s ease, box-shadow .2s ease;
-            box-shadow: 0 1px 2px rgba(36, 62, 82, 0.035);
-        }
-        .quick-btn:hover { background: #ffffff; border-color: #b8d2d7; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(36, 62, 82, 0.08); }
         .message { display: flex; gap: 16px; }
         .message-col { display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 0; }
         .message.user { justify-content: flex-end; }
@@ -501,6 +483,58 @@
         .chunk-label { margin-bottom: 5px; color: var(--accent-hover); font-size: 11px; font-weight: 650; }
         .chunk-content { color: var(--text-secondary); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
 
+        /* account settings */
+        .profile-view {
+            overflow-y: auto;
+            padding: 92px 32px 48px;
+        }
+        .profile-shell { width: min(860px, 100%); margin: 0 auto; }
+        .profile-heading { margin-bottom: 24px; }
+        .profile-heading h1 { font-size: 30px; font-weight: 650; letter-spacing: -.03em; }
+        .profile-heading p { max-width: 560px; margin-top: 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+        .profile-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+        .profile-summary, .profile-form-panel { padding: 22px; }
+        .profile-avatar {
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            margin-bottom: 20px;
+            border-radius: 14px;
+            background: #eaf3f4;
+            color: var(--accent-hover);
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .profile-meta-label { margin-bottom: 6px; color: var(--text-muted); font-size: 12px; }
+        .profile-email { overflow-wrap: anywhere; color: var(--text-primary); font-size: 14px; font-weight: 600; line-height: 1.5; }
+        .profile-note { margin-top: 18px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+        .profile-form { display: grid; gap: 15px; margin-top: 20px; }
+        .field-input::placeholder { color: var(--text-muted); }
+        .field-help { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+        .profile-submit {
+            justify-self: start;
+            min-width: 112px;
+            padding: 11px 18px;
+            border: 0;
+            border-radius: 9px;
+            background: var(--accent);
+            color: #fff;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 650;
+            cursor: pointer;
+            transition: background .2s ease, transform .2s ease;
+        }
+        .profile-submit:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .profile-submit:active { transform: translateY(0); }
+        .profile-submit:disabled { opacity: .55; cursor: wait; transform: none; }
+
         /* message entrance */
         .message {
             animation: messageIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -592,7 +626,6 @@
             .thread { padding: 72px 0 120px; }
             .thread-inner { padding: 0 16px; gap: 24px; }
             .welcome h1 { font-size: 28px; }
-            .quick-grid { grid-template-columns: 1fr; }
             .message { gap: 10px; }
             .bubble { max-width: calc(100vw - 80px); font-size: 15px; padding: 12px 14px; }
             .composer { width: calc(100% - 32px); bottom: 16px; border-radius: 20px; }
@@ -604,6 +637,11 @@
             .upload-panel { position: static; }
             .document-summary { grid-template-columns: 1fr; }
             .document-actions { justify-content: flex-start; }
+            .profile-view { padding: 76px 16px 32px; }
+            .profile-heading h1 { font-size: 25px; }
+            .profile-grid { grid-template-columns: 1fr; }
+            .profile-summary, .profile-form-panel { padding: 19px; }
+            .profile-submit { width: 100%; }
         }
     </style>
 </head>
@@ -655,11 +693,11 @@
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h8a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z"/><path d="M5 13.5a2 2 0 0 1 0-4h8"/></svg>
                     <span>知识库</span>
                 </button>
+                <button type="button" class="nav-btn" data-view="profile">
+                    <span class="nav-monogram" id="navAccountInitial">我</span>
+                    <span>个人信息</span>
+                </button>
             </nav>
-            <button class="new-chat" id="newBtn">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
-                <span>新对话</span>
-            </button>
             <div class="account-footer">
                 <div class="account-label">当前账号</div>
                 <div class="account-email" id="accountEmail"></div>
@@ -672,6 +710,7 @@
                 <div class="mobile-tabs" aria-label="移动端功能切换">
                     <button type="button" class="mobile-tab active" data-view="chat">问答</button>
                     <button type="button" class="mobile-tab" data-view="knowledge">知识库</button>
+                    <button type="button" class="mobile-tab" data-view="profile">我的</button>
                 </div>
             </header>
             <section class="view-pane chat-view" id="chatView">
@@ -680,12 +719,6 @@
                         <div class="welcome" id="homeCard">
                             <h1>客服档案</h1>
                             <p>每个回答都带证据，来源随时可核实。</p>
-                            <div class="quick-grid">
-                                <button class="quick-btn" data-q="如何重置密码？">如何重置密码？</button>
-                                <button class="quick-btn" data-q="退换货政策是什么？">退换货政策是什么？</button>
-                                <button class="quick-btn" data-q="支持哪些支付方式？">支持哪些支付方式？</button>
-                                <button class="quick-btn" data-q="物流一般要多久？">物流一般要多久？</button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -709,16 +742,16 @@
                     <div class="knowledge-grid">
                         <aside class="panel upload-panel">
                             <h2 class="panel-title">添加资料</h2>
-                            <p class="panel-description">支持 Markdown、文本、HTML、CSV、PDF、Word 和 Excel，单文件不超过 20 MB。</p>
+                            <p class="panel-description">仅支持 Markdown（.md）文档，单文件不超过 20 MB。</p>
                             <form class="upload-form" id="uploadForm">
                                 <label class="file-drop" id="fileDrop" for="knowledgeFile">
                                     <strong id="fileDropTitle">选择文件或拖到这里</strong>
                                     <span>文件保存后会在后台进入知识库</span>
-                                    <input id="knowledgeFile" type="file" accept=".md,.markdown,.txt,.html,.htm,.csv,.pdf,.docx,.xlsx" required>
+                                    <input id="knowledgeFile" type="file" accept=".md" required>
                                 </label>
                                 <div class="form-field">
                                     <label for="knowledgeTitle">标题（可选）</label>
-                                    <input class="field-input" id="knowledgeTitle" maxlength="256" placeholder="默认使用文件名">
+                                    <input class="field-input" id="knowledgeTitle" maxlength="256" placeholder="默认读取文档一级标题">
                                 </div>
                                 <div class="form-field">
                                     <label for="knowledgeCategory">分类</label>
@@ -743,6 +776,45 @@
                             <div class="document-list" id="documentList">
                                 <div class="empty-state">正在加载知识文档…</div>
                             </div>
+                        </section>
+                    </div>
+                </div>
+            </section>
+            <section class="view-pane profile-view hidden" id="profileView">
+                <div class="profile-shell">
+                    <div class="profile-heading">
+                        <h1>个人信息</h1>
+                        <p>查看当前登录账号并更新密码。修改后，其他设备上的登录状态将退出。</p>
+                    </div>
+                    <div class="profile-grid">
+                        <section class="panel profile-summary" aria-labelledby="accountSummaryTitle">
+                            <div class="profile-avatar" id="profileInitial">我</div>
+                            <h2 class="panel-title" id="accountSummaryTitle">账号信息</h2>
+                            <p class="panel-description">当前用于登录系统的账号。</p>
+                            <div class="profile-meta-label">登录邮箱</div>
+                            <div class="profile-email" id="profileEmail"></div>
+                            <p class="profile-note">邮箱暂不支持在线修改。如需更换账号，请注册新的邮箱账号。</p>
+                        </section>
+                        <section class="panel profile-form-panel" aria-labelledby="passwordFormTitle">
+                            <h2 class="panel-title" id="passwordFormTitle">修改密码</h2>
+                            <p class="panel-description">请先验证当前密码，再设置新密码。</p>
+                            <form class="profile-form" id="passwordForm">
+                                <div class="form-field">
+                                    <label for="currentPassword">当前密码</label>
+                                    <input class="field-input" id="currentPassword" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
+                                </div>
+                                <div class="form-field">
+                                    <label for="newPassword">新密码</label>
+                                    <input class="field-input" id="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                                    <span class="field-help">至少 8 位字符，不能与当前密码相同。</span>
+                                </div>
+                                <div class="form-field">
+                                    <label for="confirmPassword">确认新密码</label>
+                                    <input class="field-input" id="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+                                </div>
+                                <button class="profile-submit" id="passwordSubmit" type="submit">保存新密码</button>
+                                <p class="operation-note" id="passwordNote" role="status" aria-live="polite"></p>
+                            </form>
                         </section>
                     </div>
                 </div>
@@ -795,6 +867,10 @@
         function showApp(user){
             currentUser=user;
             document.getElementById('accountEmail').textContent=user.email;
+            document.getElementById('profileEmail').textContent=user.email;
+            var initial=(user.email || '我').charAt(0).toUpperCase();
+            document.getElementById('profileInitial').textContent=initial;
+            document.getElementById('navAccountInitial').textContent=initial;
             document.getElementById('authShell').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initializeSession();
@@ -862,18 +938,51 @@
         }
 
         function showView(view){
-            currentView=view==='knowledge' ? 'knowledge' : 'chat';
+            currentView=view==='knowledge' || view==='profile' ? view : 'chat';
             var knowledge=currentView==='knowledge';
-            document.getElementById('chatView').classList.toggle('hidden',knowledge);
+            var profile=currentView==='profile';
+            document.getElementById('chatView').classList.toggle('hidden',knowledge || profile);
             document.getElementById('knowledgeView').classList.toggle('hidden',!knowledge);
-            document.getElementById('newBtn').classList.toggle('hidden',knowledge);
-            document.getElementById('topbarTitle').textContent=knowledge ? '知识库 · Support Stack' : '客服档案 · Support Stack';
+            document.getElementById('profileView').classList.toggle('hidden',!profile);
+            document.getElementById('topbarTitle').textContent=knowledge ? '知识库 · Support Stack' : (profile ? '个人信息 · Support Stack' : '客服档案 · Support Stack');
             document.querySelectorAll('[data-view]').forEach(function(button){
                 button.classList.toggle('active',button.getAttribute('data-view')===currentView);
             });
             stopKnowledgePolling();
             if(knowledge) loadKnowledgeDocuments();
+            else if(profile) setTimeout(function(){ document.getElementById('currentPassword').focus(); },0);
             else setTimeout(function(){ document.getElementById('messageInput').focus(); },0);
+        }
+
+        function setPasswordNote(message,type){
+            var note=document.getElementById('passwordNote');
+            note.textContent=message || '';
+            note.className='operation-note'+(type ? ' '+type : '');
+        }
+        function changePassword(event){
+            event.preventDefault();
+            var current=document.getElementById('currentPassword').value;
+            var next=document.getElementById('newPassword').value;
+            var confirm=document.getElementById('confirmPassword').value;
+            var submit=document.getElementById('passwordSubmit');
+            setPasswordNote('','');
+            if(next.length<8){ setPasswordNote('新密码至少需要 8 位字符。','error'); return; }
+            if(next!==confirm){ setPasswordNote('两次输入的新密码不一致。','error'); return; }
+            if(current===next){ setPasswordNote('新密码不能与当前密码相同。','error'); return; }
+            submit.disabled=true; submit.textContent='正在保存';
+            apiFetch('/api/auth/password',{
+                method:'PUT',
+                body:JSON.stringify({current_password:current,new_password:next})
+            })
+            .then(readApiResponse)
+            .then(function(result){
+                if(result.status===401){ clearAuth('登录状态已失效，请重新登录'); return; }
+                if(!result.ok) throw new Error(result.data.detail || '密码修改失败');
+                document.getElementById('passwordForm').reset();
+                setPasswordNote(result.data.message || '密码已更新。','success');
+            })
+            .catch(function(error){ setPasswordNote(error.message || '密码修改失败，请稍后重试。','error'); })
+            .finally(function(){ submit.disabled=false; submit.textContent='保存新密码'; });
         }
 
         function readableSize(bytes){
@@ -883,7 +992,7 @@
             return (bytes/1048576).toFixed(1)+' MB';
         }
         function readableDate(value){
-            if(!value) return '—';
+            if(!value) return '暂无';
             var date=new Date(value);
             return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
         }
@@ -1026,14 +1135,14 @@
         }
         function buildHomeCard(){
             var home=el('div','welcome'); home.id='homeCard';
-            home.innerHTML='<h1>客服档案</h1><p>每个回答都带证据，来源随时可核实。</p><div class="quick-grid"><button class="quick-btn" data-q="如何重置密码？">如何重置密码？</button><button class="quick-btn" data-q="退换货政策是什么？">退换货政策是什么？</button><button class="quick-btn" data-q="支持哪些支付方式？">支持哪些支付方式？</button><button class="quick-btn" data-q="物流一般要多久？">物流一般要多久？</button></div>';
+            home.appendChild(el('h1','', '客服档案'));
+            home.appendChild(el('p','', '每个回答都带证据，来源随时可核实。'));
             return home;
         }
         function resetConversationView(){
             var inner=document.getElementById('threadInner');
             inner.innerHTML='';
             inner.appendChild(buildHomeCard());
-            bindQuick();
             typingRow=null;
         }
         function addUserCard(text){
@@ -1094,24 +1203,13 @@
             .catch(function(error){ if(error.authHandled) return; console.error(error); hideTyping(); addErrorCard(); })
             .finally(function(){ send.disabled=false; if(authToken) input.focus(); });
         }
-        function newConversation(){
-            if(!authToken) return;
-            var oldSession=sessionId;
-            if(oldSession){
-                apiFetch('/api/conversation/' + encodeURIComponent(oldSession), {method:'DELETE'})
-                .then(function(response){ if(response.status===401) clearAuth('登录状态已失效，请重新登录'); })
-                .catch(function(){});
-            }
-            sessionId=generateSessionId(); localStorage.setItem(sessionStorageKey(),sessionId); resetConversationView();
-        }
-        function bindQuick(){ document.querySelectorAll('.quick-btn').forEach(function(b){ b.addEventListener('click',function(){ sendMessage(this.getAttribute('data-q')); }); }); }
-
         document.addEventListener('DOMContentLoaded', function(){
             document.querySelectorAll('.auth-tab').forEach(function(tab){ tab.addEventListener('click',function(){ setAuthMode(this.getAttribute('data-auth-mode')); }); });
             document.querySelectorAll('[data-view]').forEach(function(button){ button.addEventListener('click',function(){ showView(this.getAttribute('data-view')); }); });
             document.getElementById('authForm').addEventListener('submit',submitAuth);
             document.getElementById('chatForm').addEventListener('submit',function(e){ e.preventDefault(); var msg=document.getElementById('messageInput').value.trim(); if(msg) sendMessage(msg); });
             document.getElementById('uploadForm').addEventListener('submit',uploadKnowledgeDocument);
+            document.getElementById('passwordForm').addEventListener('submit',changePassword);
             document.getElementById('refreshDocuments').addEventListener('click',function(){ loadKnowledgeDocuments(); });
             document.getElementById('knowledgeFile').addEventListener('change',function(){ updateSelectedFile(this.files[0]); });
             var fileDrop=document.getElementById('fileDrop');
@@ -1121,7 +1219,6 @@
                 var files=event.dataTransfer && event.dataTransfer.files;
                 if(files && files.length){ document.getElementById('knowledgeFile').files=files; updateSelectedFile(files[0]); }
             });
-            document.getElementById('newBtn').addEventListener('click',newConversation);
             document.getElementById('logoutBtn').addEventListener('click',logout);
             setAuthMode('login'); bootstrapAuth();
         });

@@ -1,11 +1,3 @@
-```markdown
----
-doc_id: liantong-qingshui
-category: product
-tags: 联通,清水卡,流量卡,甘肃
----
-```
-
 # **联通清水卡29元155G全国【只发甘肃】**
 
 ## 产品套餐

@@ -10,8 +10,8 @@ from app.rag.schemas import RagChunk, RagDocument, content_digest
 
 @dataclass(frozen=True)
 class ChunkingConfig:
-    chunk_size: int = 800
-    chunk_overlap: int = 120
+    chunk_size: int = 400
+    chunk_overlap: int = 60
     separators: Tuple[str, ...] = ("\n\n", "\n", "。", "！", "？", "；", "，", " ")
 
     def __post_init__(self) -> None:
@@ -63,6 +63,7 @@ class StructureAwareChunker:
                     content=content,
                     category=document.category,
                     tags=document.tags,
+                    aliases=document.aliases,
                     source=document.source,
                     content_hash=digest,
                     document_hash=document.content_hash,

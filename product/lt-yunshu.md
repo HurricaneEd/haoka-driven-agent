@@ -1,11 +1,3 @@
-```markdown
----
-doc_id: liantong-yunshu
-category: product
-tags: 联通,云舒卡,流量卡
----
-```
-
 # **联通云舒卡39元270G+100分钟【发全国】**
 
 ## 商品特色

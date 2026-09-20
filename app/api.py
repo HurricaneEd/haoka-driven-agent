@@ -28,11 +28,13 @@ from app.knowledge_documents import (
     save_upload,
 )
 from app.rag.schemas import normalize_tags
+from app.rag.parsers import DocumentParserRegistry
 from app.chatbot import chatbot
 from app.model import (
     AuthCredentials,
     AuthResponse,
     AuthUser,
+    PasswordChangeRequest,
     ChatRequest,
     ChatResponse,
     ConversationHistory,
@@ -175,6 +177,29 @@ async def logout(
     return {"message": "已退出登录"}
 
 
+@app.put("/auth/password")
+async def change_password(
+    request: PasswordChangeRequest,
+    authorization: Optional[str] = Header(default=None),
+    current_user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change the signed-in user's password and revoke other sessions."""
+    if not verify_password(request.current_password, current_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码不正确")
+    if request.current_password == request.new_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与当前密码相同")
+    token = authorization.split(" ", 1)[1].strip()
+    updated = DatabaseManager(db).update_user_password(
+        current_user.id,
+        hash_password(request.new_password),
+        keep_token_hash=hash_token(token),
+    )
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+    return {"message": "密码已更新，其他设备上的登录状态已退出"}
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -292,8 +317,16 @@ async def upload_knowledge_document(
     saved = None
     try:
         saved = await save_upload(file)
-        clean_title = (title or Path(saved.filename).stem).strip()
         clean_category = category.strip() or "knowledge"
+        parsed = DocumentParserRegistry().parse(resolve_source(saved.source), {
+            "doc_id": saved.doc_id,
+            "category": clean_category,
+            "source": saved.source,
+        })
+        detected_title = (
+            Path(saved.filename).stem if parsed.title == saved.doc_id else parsed.title
+        )
+        clean_title = (title or detected_title).strip()
         if not clean_title:
             raise KnowledgeUploadError("文档标题不能为空")
         if len(clean_title) > 256 or len(clean_category) > 64:

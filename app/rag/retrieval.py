@@ -3,11 +3,21 @@
 from collections import Counter
 import math
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Sequence, Tuple
 
 from langchain_core.documents import Document
 
 from app.rag.stores import ChromaVectorStore
+from app.rag.identity import normalize_identity_text
+from app.rag.schemas import RagDocument
+
+
+class ParentStore(Protocol):
+    def get(self, doc_id: str) -> RagDocument | None:
+        ...
+
+    def list(self, category: str | None = None) -> List[RagDocument]:
+        ...
 
 
 def lexical_tokens(text: str) -> List[str]:
@@ -27,17 +37,17 @@ class RetrievalService:
         self,
         store: ChromaVectorStore,
         *,
+        parent_store: ParentStore | None = None,
         fetch_k: int = 30,
         lambda_mult: float = 0.7,
-        spread_threshold: int = 3,
         hybrid_enabled: bool = True,
         lexical_weight: float = 0.35,
         rrf_k: int = 60,
     ) -> None:
         self.store = store
+        self.parent_store = parent_store
         self.fetch_k = fetch_k
         self.lambda_mult = lambda_mult
-        self.spread_threshold = spread_threshold
         self.hybrid_enabled = hybrid_enabled
         self.lexical_weight = max(0.0, min(1.0, lexical_weight))
         self.rrf_k = max(1, rrf_k)
@@ -60,7 +70,9 @@ class RetrievalService:
             ranked = self._rrf(vector_docs, lexical_docs)
         else:
             ranked = vector_docs
-        return self._deduplicate(ranked[:k])
+        if not self.parent_store:
+            return ranked[:k]
+        return self._select_and_expand(query, ranked, k=k, category=category)
 
     def search(
         self, query: str, *, k: int = 5, category: Optional[str] = None
@@ -161,20 +173,89 @@ class RetrievalService:
             str(metadata.get("content_hash") or document.page_content),
         )
 
-    def _deduplicate(self, documents: Sequence[Document]) -> List[Document]:
-        doc_ids = [
-            str(document.metadata.get("doc_id"))
-            for document in documents
-            if document.metadata.get("doc_id")
-        ]
-        if len(set(doc_ids)) < self.spread_threshold:
-            return list(documents)
-        seen: set[str] = set()
-        result: list[Document] = []
-        for document in documents:
+    @staticmethod
+    def _is_comparison(query: str) -> bool:
+        return bool(re.search(r"对比|比较|区别|差别|哪个好|哪款|有哪些|推荐|怎么选", query))
+
+    def _select_and_expand(
+        self,
+        query: str,
+        ranked: Sequence[Document],
+        *,
+        k: int,
+        category: Optional[str],
+    ) -> List[Document]:
+        parents = self.parent_store.list(category)
+        if not parents:
+            return list(ranked[:k])
+
+        normalized_query = normalize_identity_text(query)
+        explicit: list[RagDocument] = []
+        for parent in parents:
+            aliases = sorted(parent.aliases, key=lambda value: len(normalize_identity_text(value)), reverse=True)
+            if any(
+                len(normalize_identity_text(alias)) >= 2
+                and normalize_identity_text(alias) in normalized_query
+                for alias in aliases
+            ):
+                explicit.append(parent)
+
+        comparison = self._is_comparison(query)
+        if len(explicit) == 1:
+            return [self._expand_parent(explicit[0], ranked)]
+        if len(explicit) > 1:
+            if comparison:
+                return [self._expand_parent(parent, ranked) for parent in explicit[:3]]
+            return [self._clarification(explicit)]
+
+        ranked_ids: list[str] = []
+        for document in ranked:
             doc_id = str(document.metadata.get("doc_id") or "")
-            if not doc_id or doc_id in seen:
-                continue
-            seen.add(doc_id)
-            result.append(document)
-        return result
+            if doc_id and doc_id not in ranked_ids:
+                ranked_ids.append(doc_id)
+        candidates = [parent for doc_id in ranked_ids if (parent := self.parent_store.get(doc_id))]
+        if not candidates:
+            return list(ranked[:k])
+        if comparison:
+            return [self._expand_parent(parent, ranked) for parent in candidates[:3]]
+        if len(candidates) > 1 and any(parent.category == "product" for parent in candidates):
+            return [self._clarification(candidates[:5])]
+        return [self._expand_parent(candidates[0], ranked)]
+
+    @staticmethod
+    def _expand_parent(parent: RagDocument, ranked: Sequence[Document]) -> Document:
+        sections = list(dict.fromkeys(
+            str(document.metadata.get("section") or "")
+            for document in ranked
+            if document.metadata.get("doc_id") == parent.doc_id
+            and document.metadata.get("section")
+        ))
+        return Document(
+            page_content=parent.content,
+            metadata={
+                "doc_id": parent.doc_id,
+                "title": parent.title,
+                "category": parent.category,
+                "tags": ",".join(parent.tags),
+                "aliases": ",".join(parent.aliases),
+                "source": parent.source,
+                "parent_chunk": True,
+                "matched_sections": sections,
+            },
+        )
+
+    @staticmethod
+    def _clarification(candidates: Sequence[RagDocument]) -> Document:
+        titles = [parent.title for parent in candidates]
+        return Document(
+            page_content=(
+                "需要确认商品：当前问题未明确具体商品，请先向用户确认商品名称，不要直接给出套餐结论。"
+                f"可能涉及：{'、'.join(titles)}。"
+            ),
+            metadata={
+                "clarification_required": True,
+                "candidate_titles": titles,
+                "title": "需要确认商品",
+                "category": "clarification",
+            },
+        )

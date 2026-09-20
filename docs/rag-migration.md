@@ -5,13 +5,16 @@
 知识库已从“Markdown 固定标题切分 + 业务层直连 Chroma + 全量清空重建”改为独立管线：
 
 ```text
-文件 -> DocumentParserRegistry -> StructureAwareChunker -> IngestionService -> ChromaVectorStore
-查询 -> 向量 MMR + 中文 BM25 -> RRF 融合 -> search_knowledge 工具 -> 客服 Agent
+Markdown -> 自动身份/别名 -> 完整父文档（SQLite）+ 标题感知子块（Chroma）
+查询 -> 向量 MMR + 中文 BM25 -> RRF 融合 -> 按商品聚合 -> 展开父文档 -> 客服 Agent
 ```
 
-- 支持 Markdown、TXT、HTML、CSV、PDF、DOCX、XLSX。
-- Markdown/DOCX/HTML/PDF/XLSX 会尽量保留标题、页码或工作表结构。
-- 先按结构分节，超长章节再按 `RAG_CHUNK_SIZE` 和 `RAG_CHUNK_OVERLAP` 切分。
+- 仅支持 `.md` Markdown 文档；上传其他格式会被拒绝，目录摄入会忽略非 `.md` 文件。
+- Markdown 不再读取 frontmatter：文件名生成内部 `doc_id`，首个一级标题生成展示名称。
+- 商品别名由标题自动生成；例如四川联通卡会获得“四川卡”等高精度别名。
+- 每份 Markdown 的完整正文作为父文档保存；先按结构分节，超长章节再按 `RAG_CHILD_CHUNK_SIZE` 和 `RAG_CHILD_CHUNK_OVERLAP` 切成检索子块。
+- 子块命中后按 `doc_id` 聚合并展开完整父文档，避免不同商品的相似章节互串。
+- 泛称涉及多款商品时要求用户确认；只有明确的对比问题才会展开多个父文档。
 - 块 ID 基于内容哈希，不再依赖章节位置。
 - 普通摄入按文档哈希跳过未变化内容；变化时只替换对应 `doc_id`。
 - Chroma 被适配器封装，客服 Agent 不再直接访问底层 vectorstore。
@@ -67,4 +70,4 @@ python scripts/ingest_products.py --delete-doc DOC_ID
 
 当前 BM25 会读取现有 Chroma 文档，适合当前的小型知识库。数据规模扩大后应将词法索引迁移到 Elasticsearch/OpenSearch，或换成原生支持稀疏向量的存储。
 
-后台任务目前运行在 Web 进程内；服务在处理期间重启会留下 `pending` 或 `processing` 状态，可从页面手动重试。生产环境下一阶段应接入持久任务队列。复杂扫描 PDF 仍宜接独立解析/OCR 服务，重排模型（reranker）尚未引入。
+后台任务目前运行在 Web 进程内；服务在处理期间重启会留下 `pending` 或 `processing` 状态，可从页面手动重试。生产环境下一阶段应接入持久任务队列，重排模型（reranker）尚未引入。

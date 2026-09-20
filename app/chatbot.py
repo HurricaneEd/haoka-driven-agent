@@ -8,30 +8,26 @@ from langchain_core.tools import Tool, create_schema_from_function
 from app.database import DatabaseManager
 from app.knowledge_base import get_knowledge_base
 from app.rag.schemas import RagChunk
-from app.tools import BASE_TOOLS
 from config import settings
 
 # Agent 系统提示词（第 9 课：Agent 统一入口，自己决定调用哪个工具）
-AGENT_SYSTEM_PROMPT = """你是电商客服助手，负责帮用户解决套餐、订单、物流、退卡、密码等问题。
+AGENT_SYSTEM_PROMPT = """你是电商客服助手，负责根据知识库回答套餐、激活、退卡和资费等问题。
 
 根据用户请求判断调用哪个工具：
 - 套餐内容、流量、激活流程、退卡政策、资费说明等知识类问题 → search_knowledge（查客服知识库）
-- 查询订单状态、物流进度 → search_order
-- 用户要求转人工、投诉、情绪激动 → transfer_to_human
-- 用户要重置密码 → reset_password
-
 规则：
 1. 以工具返回的信息为事实依据，组织简洁、友好、准确的中文回答，不编造工具未提供的信息
-2. search_knowledge 未命中时，如实告知用户知识库暂无相关内容，并建议转人工
+2. search_knowledge 未命中时，如实告知用户知识库暂无相关内容
 3. 不要重复调用同一工具；必要时可连续调用多个工具
-4. 若无法确定用户需求，主动追问澄清"""
+4. 若无法确定用户需求，主动追问澄清
+5. search_knowledge 返回“需要确认商品”时，只询问用户具体是哪款商品，不要猜测，也不要混合多个商品作答
+6. 用户要求修改密码时，引导其前往“个人信息”页面，不要声称已代为修改或发送链接"""
 
 
 class CustomerSupportChatbot:
     """客服机器人：Agent 统一入口（第 9 课实践5）。
 
-    知识库检索、订单查询、转人工、重置密码都是 Agent 的工具，
-    由 LLM 自己决定调用哪个；会话上下文按 session_id 从数据库注入。
+    知识库检索是 Agent 的事实来源；会话上下文按 session_id 从数据库注入。
     """
     def __init__(self):
         # Initialize LLM
@@ -61,7 +57,7 @@ class CustomerSupportChatbot:
         # ★ Agent 统一入口（第 9 课实践5）：知识库也是工具，LLM 自己决定路由
         self.agent = create_agent(
             model=self.llm,
-            tools=[knowledge_tool, *BASE_TOOLS],
+            tools=[knowledge_tool],
             system_prompt=AGENT_SYSTEM_PROMPT,
             debug=settings.debug,
         )
@@ -75,16 +71,18 @@ class CustomerSupportChatbot:
         同时把结构化来源写入 self._last_sources，供 get_responses 返回前端。
         """
         docs = self.kb_manager.retrieve(query, k=6)
+        if docs and docs[0].metadata.get("clarification_required"):
+            self._last_sources = []
+            return docs[0].page_content
         sources: List[Dict[str, str]] = []
         parts: List[str] = []
         for doc in docs:
             title = doc.metadata.get("title", "未知")
             category = doc.metadata.get("category", "未知")
             content = doc.page_content
-            if len(content) > 300:
-                content = content[:300] + "..."
-            sources.append({"title": title, "category": category, "content": content})
-            parts.append(f"[{title}] {content}")
+            preview = content[:300] + ("..." if len(content) > 300 else "")
+            sources.append({"title": title, "category": category, "content": preview})
+            parts.append(f"[{title}]\n{content[:6000]}")
         self._last_sources = sources
         if not parts:
             return "知识库中没有找到相关内容。"

@@ -1,11 +1,3 @@
-```markdown
----
-doc_id: guangdian-shengyu
-category: product
-tags: 广电,升羽卡,流量卡
----
-```
-
 # **广电升羽卡28元350G+200分钟【发全国】**
 
 ## 商品特色

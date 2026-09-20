@@ -10,9 +10,10 @@ services:
       - DEBUG=false
       - HOST=0.0.0.0
       - PORT=8000
+      - DATABASE_URL=sqlite:////usr/src/app/data/customer_support.db
     env_file:
       - .env
     volumes:
       - ./chroma_db:/usr/src/app/chroma_db
-      - ./customer_support.db:/usr/src/app/customer_support.db
+      - ./data:/usr/src/app/data
     restart: unless-stopped
