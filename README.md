@@ -127,6 +127,10 @@ index.html                    # Web 页面
 
 ## 部分截图
 
-![image-20260920142003032](C:\Users\86183\AppData\Roaming\Typora\typora-user-images\image-20260920142003032.png)
+### 智能客服
 
-![image-20260920141852892](C:\Users\86183\AppData\Roaming\Typora\typora-user-images\image-20260920141852892.png)
+![智能客服问答界面](docs/images/chat.png)
+
+### 知识库管理
+
+![知识库管理界面](docs/images/knowledge.png)
